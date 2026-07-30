@@ -492,3 +492,81 @@ shiny::runApp("dashboard/app.R")
 
 # Or from terminal
 Rscript -e "shiny::runApp('dashboard/app.R')"
+
+## Dashboard Preview
+┌─────────────────────────────────────────────────────────────┐
+│  🥑 Avocado Price Forecast Dashboard                       │
+├─────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────────────────────────────┐│
+│  │ Settings     │  │  📈 Forecast                        ││
+│  │ Weeks: [===] │  │  ┌──────────────────────────────────┐││
+│  │  4  6  8  12 │  │  │ Week │ Date    │ Price │ Lower  │││
+│  │              │  │  │  1   │ 2018-04-01│ 1.06 │ 0.88  │││
+│  │ Model Info   │  │  │  2   │ 2018-04-08│ 1.68 │ 1.50  │││
+│  │ ARIMA(3,0,1) │  │  │  3   │ 2018-04-15│ 1.04 │ 0.81  │││
+│  │              │  │  └──────────────────────────────────┘││
+│  │ Business Tips│  │  ┌──────────────────────────────────┐││
+│  │ 🟢 Buy <1.20 │  │  │  📊 Forecast Plot              │││
+│  │ 🔴 Sell >1.50│  │  │  ╭──────────────────────────────╮│││
+│  └──────────────┘  │  │  │ Historical ── Forecast ──  │││
+│                     │  │  │      ╭─────────────────╮   │││
+│                     │  │  │  ╭──╯  ──────╮       │   │││
+│                     │  │  │  │ 2017 │ 2018 │ 2019 │   │││
+│                     │  │  └──────────────────────────────┘││
+│                     └──────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+
+
+# 🚀 Installation & Setup
+
+## Prerequisites
+* **R** (version 4.0 or higher)
+* **RStudio** (recommended)
+* **Git** (for cloning the repository)
+
+---
+
+## Step 1: Clone the Repository
+
+```bash
+git clone
+cd avocado-price-forecast
+
+## Step 2: Install Required Packages
+
+# Install all required packages
+packages <- c(
+  "tidyverse",      # Data manipulation
+  "lubridate",      # Date handling
+  "caret",          # Modeling framework
+  "randomForest",   # Random Forest
+  "rpart",          # Decision trees
+  "corrplot",       # Correlation plots
+  "gridExtra",      # Arranging plots
+  "knitr",          # Reports
+  "kableExtra",     # Enhanced tables
+  "forecast",       # ARIMA time series
+  "prophet",        # Facebook Prophet
+  "tseries",        # Stationarity tests
+  "zoo",            # Rolling operations
+  "ggplot2",        # Visualization
+  "plotly",         # Interactive plots
+  "shiny",          # Dashboard
+  "shinythemes"     # Dashboard themes
+)
+
+install.packages(packages)
+
+
+## Step 3: Run the Analysis
+
+# Option 1: Run the R Markdown report
+rmarkdown::render("rmd/avocado_analysis.Rmd")
+
+# Option 2: Run the deployment script
+source("scripts/06_deployment.R")
+
+# Option 3: Launch the dashboard
+shiny::runApp("dashboard/app.R")
+
+#

@@ -1,0 +1,860 @@
+---
+title: "Untitled"
+author: "Vivian Jerono"
+date: "2026-07-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Install packages (uncomment to run once)
+# install.packages(c(
+#   "tidyverse", "lubridate", "caret", "randomForest",
+#   "rpart", "rpart.plot", "corrplot", "gridExtra",
+#   "knitr", "kableExtra", "forecast", "prophet",
+#   "tseries", "zoo", "ggplot2", "plotly", "shiny"
+# ))
+
+library(tidyverse)
+library(lubridate)
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(corrplot)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+library(forecast)
+library(prophet)
+library(tseries)
+library(zoo)
+library(plotly)
+library(shiny)
+```
+
+
+```{r}
+# Load the dataset
+avocado <- read.csv("C:/Users/Admin/Downloads/avocado.csv/avocado.csv")
+print(head(avocado, 5))
+```
+
+```{r}
+# Dataset overview
+cat("========== AVOCADO DATASET OVERVIEW ==========\n")
+cat("Dataset dimensions:", dim(avocado), "\n")
+cat("Number of rows:", nrow(avocado), "\n")
+cat("Number of columns:", ncol(avocado), "\n\n")
+
+cat("\nColumn names:\n")
+print(names(avocado))
+
+cat("\nData structure:\n")
+str(avocado)
+
+cat("\nSummary statistics:\n")
+summary(avocado)
+
+cat("\nMissing values per column:\n")
+missing_count <- colSums(is.na(avocado))
+print(missing_count[missing_count > 0])
+```
+
+```{r}
+# Remove unnecessary first column
+avocado <- avocado %>% select(-X)
+
+# Convert Date to proper format
+avocado <- avocado %>%
+  mutate(
+    Date = as.Date(Date, format = "%m/%d/%Y"),
+    year = year(Date),
+    month = month(Date, label = TRUE),
+    quarter = quarter(Date),
+    day_of_week = wday(Date, label = TRUE)
+  )
+
+# Check for duplicates
+duplicates <- sum(duplicated(avocado))
+cat("\nNumber of duplicate rows:", duplicates, "\n")
+
+# Check for missing values
+cat("\nMissing values after cleaning:\n")
+print(colSums(is.na(avocado)))
+```
+```{r}
+# Verify date conversion
+cat("Date class:", class(avocado$Date), "\n")
+cat("Date range:", min(avocado$Date), "to", max(avocado$Date), "\n")
+cat("Sample dates:\n")
+print(head(avocado$Date, 10))
+```
+EXPLORATORY DATA ANALYSIS
+```{r}
+# Target variable distribution
+cat("\n========== TARGET VARIABLE ANALYSIS ==========\n")
+cat("AveragePrice Summary Statistics:\n")
+summary_stats <- summary(avocado$AveragePrice)
+print(summary_stats)
+```
+
+```{r}
+# Price distribution histogram
+p1 <- ggplot(avocado, aes(x = AveragePrice)) +
+  geom_histogram(bins = 40, fill = "#2E8B57", color = "black", alpha = 0.7) +
+  geom_vline(xintercept = mean(avocado$AveragePrice), color = "red", linetype = "dashed", linewidth = 1) +
+  geom_vline(xintercept = median(avocado$AveragePrice), color = "blue", linetype = "dotted", linewidth = 1) +
+  labs(
+    title = "Distribution of Avocado Prices",
+    subtitle = "Red line = Mean, Blue line = Median",
+    x = "Average Price (USD)",
+    y = "Frequency"
+  ) +
+  theme_minimal()
+print(p1)
+
+# Price by Type
+p2 <- ggplot(avocado, aes(x = type, y = AveragePrice, fill = type)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.2, size = 0.5) +
+  labs(
+    title = "Avocado Prices by Type",
+    x = "Type",
+    y = "Average Price (USD)"
+  ) +
+  scale_fill_manual(values = c("#FF6B6B", "#4ECDC4")) +
+  theme_minimal()
+print(p2)
+
+# Price trend over time
+p3 <- avocado %>%
+  group_by(Date) %>%
+  summarise(avg_price = mean(AveragePrice)) %>%
+  ggplot(aes(x = Date, y = avg_price)) +
+  geom_line(color = "#2E8B57", linewidth = 0.8) +
+  geom_smooth(method = "loess", color = "red", se = FALSE) +
+  labs(
+    title = "Avocado Price Trend Over Time",
+    x = "Date",
+    y = "Average Price (USD)"
+  ) +
+  theme_minimal()
+print(p3)
+
+# Time series by region (top 5)
+top_regions <- avocado %>%
+  group_by(region) %>%
+  summarise(total_volume = sum(Total.Volume)) %>%
+  arrange(desc(total_volume)) %>%
+  head(5) %>%
+  pull(region)
+
+p4 <- avocado %>%
+  filter(region %in% top_regions) %>%
+  ggplot(aes(x = Date, y = AveragePrice, color = region)) +
+  geom_line(alpha = 0.7) +
+  facet_wrap(~region, scales = "free_y") +
+  labs(
+    title = "Price Trends - Top 5 Regions",
+    x = "Date",
+    y = "Average Price (USD)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+print(p4)
+```
+
+
+TIME SERIES INITIAL ANALYSIS
+```{r}
+# Select California for initial time series analysis
+ca_data <- avocado %>%
+  filter(region == "California") %>%
+  arrange(Date) 
+
+ca_ts <- ts(
+  ca_data$AveragePrice,
+  start = c(2015, 1),
+  end = c(2018, 12),
+  frequency = 52
+)
+
+cat("California time series:\n")
+cat("  Start:", start(ca_ts), "\n")
+cat("  End:", end(ca_ts), "\n")
+cat("  Frequency:", frequency(ca_ts), "weeks/year\n")
+cat("  Observations:", length(ca_ts), "\n")
+
+# Check for seasonality
+ca_by_month <- ca_data %>%
+  mutate(month = month(Date, label = TRUE)) %>%
+  group_by(month) %>%
+  summarise(avg_price = mean(AveragePrice))
+
+cat("\nAverage price by month (California):\n")
+print(ca_by_month)
+
+# Monthly pattern plot
+p5 <- ca_by_month %>%
+  ggplot(aes(x = month, y = avg_price, fill = month)) +
+  geom_col() +
+  labs(
+    title = "Seasonal Pattern - California Avocado Prices",
+    x = "Month",
+    y = "Average Price (USD)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+print(p5)
+```
+
+```{r}
+cat("=== CALIFORNIA DATA ===\n")
+cat("Date range:", format(min(ca_data$Date), "%Y-%m-%d"), "to", 
+    format(max(ca_data$Date), "%Y-%m-%d"), "\n")
+cat("Number of weeks:", nrow(ca_data), "\n")
+
+cat("\n=== SUMMARY STATISTICS ===\n")
+cat("Data period:", format(min(ca_data$Date), "%Y-%m-%d"), "to", 
+    format(max(ca_data$Date), "%Y-%m-%d"), "\n")
+cat("Number of weeks:", nrow(ca_data), "\n")
+cat("Average price:", round(mean(ca_data$AveragePrice), 3), "\n")
+cat("Price range:", round(min(ca_data$AveragePrice), 3), 
+    "to", round(max(ca_data$AveragePrice), 3), "\n")
+cat("Standard deviation:", round(sd(ca_data$AveragePrice), 3), "\n")
+```
+
+```{r}
+cat("\n========== OUTLIER DETECTION ==========\n")
+
+Q1 <- quantile(avocado$AveragePrice, 0.25)
+Q3 <- quantile(avocado$AveragePrice, 0.75)
+IQR <- Q3 - Q1
+lower_bound <- Q1 - 1.5 * IQR
+upper_bound <- Q3 + 1.5 * IQR
+
+outliers_count <- sum(avocado$AveragePrice < lower_bound | avocado$AveragePrice > upper_bound)
+cat("Outliers detected:", outliers_count, "(", round(outliers_count/nrow(avocado)*100, 2), "%)\n")
+
+# Flag outliers but KEEP them
+avocado <- avocado %>%
+  mutate(
+    is_outlier = ifelse(
+      AveragePrice < lower_bound | AveragePrice > upper_bound,
+      1, 0
+    )
+  )
+```
+```{r}
+cat("\n========== FEATURE ENGINEERING ==========\n")
+
+# Create aggregate features
+avocado <- avocado %>%
+  mutate(
+    # Bag percentages
+    Bags_Percentage = (Total.Bags / Total.Volume) * 100,
+    Small_Bags_Pct = (Small.Bags / Total.Bags) * 100,
+    Large_Bags_Pct = (Large.Bags / Total.Bags) * 100,
+    XLarge_Bags_Pct = (XLarge.Bags / Total.Bags) * 100,
+    
+    # Handle division by zero
+    Small_Bags_Pct = ifelse(is.na(Small_Bags_Pct), 0, Small_Bags_Pct),
+    Large_Bags_Pct = ifelse(is.na(Large_Bags_Pct), 0, Large_Bags_Pct),
+    XLarge_Bags_Pct = ifelse(is.na(XLarge_Bags_Pct), 0, XLarge_Bags_Pct),
+    
+    # Total PLU volume
+    Total_PLU_Volume = `X4046` + `X4225` + `X4770`
+  )
+
+# Create seasonal features
+avocado <- avocado %>%
+  mutate(
+    season = case_when(
+      month %in% c("Dec", "Jan", "Feb") ~ "Winter",
+      month %in% c("Mar", "Apr", "May") ~ "Spring",
+      month %in% c("Jun", "Jul", "Aug") ~ "Summer",
+      month %in% c("Sep", "Oct", "Nov") ~ "Fall"
+    ),
+    is_holiday_season = ifelse(
+      month %in% c("Nov", "Dec") | (month == "Jan" & day(Date) <= 7),
+      TRUE, FALSE
+    ),
+    is_summer = ifelse(month %in% c("Jun", "Jul", "Aug"), TRUE, FALSE)
+  )
+
+# TIME SERIES FEATURES - LAG VARIABLES
+cat("\nCreating time series lag features...\n")
+
+avocado <- avocado %>%
+  arrange(region, Date) %>%
+  group_by(region) %>%
+  mutate(
+    # Price lags
+    price_lag_1 = lag(AveragePrice, 1),
+    price_lag_2 = lag(AveragePrice, 2),
+    price_lag_3 = lag(AveragePrice, 3),
+    price_lag_4 = lag(AveragePrice, 4),
+    price_lag_8 = lag(AveragePrice, 8),
+    
+    # Volume lags
+    volume_lag_1 = lag(Total.Volume, 1),
+    volume_lag_2 = lag(Total.Volume, 2),
+    
+    # Price changes
+    price_change_1 = AveragePrice - price_lag_1,
+    price_change_2 = AveragePrice - price_lag_2,
+    price_change_pct = (AveragePrice - price_lag_1) / price_lag_1 * 100,
+    
+    # Rolling statistics (4-week window)
+    rolling_mean_4 = rollmean(AveragePrice, k = 4, fill = NA, align = "right"),
+    rolling_sd_4 = rollapply(AveragePrice, width = 4, FUN = sd, fill = NA, align = "right"),
+    rolling_max_4 = rollapply(AveragePrice, width = 4, FUN = max, fill = NA, align = "right"),
+    rolling_min_4 = rollapply(AveragePrice, width = 4, FUN = min, fill = NA, align = "right"),
+    
+    # Year-over-year price
+    price_yoy = AveragePrice - lag(AveragePrice, 52)
+  ) %>%
+  ungroup()
+
+# Create interaction features
+avocado <- avocado %>%
+  mutate(
+    type_region = paste(type, region, sep = "_"),
+    volume_category = case_when(
+      Total.Volume < quantile(Total.Volume, 0.25, na.rm = TRUE) ~ "Low",
+      Total.Volume < quantile(Total.Volume, 0.75, na.rm = TRUE) ~ "Medium",
+      TRUE ~ "High"
+    )
+  )
+
+cat("Features created successfully.\n")
+cat("Total features:", ncol(avocado), "\n")
+```
+```{r}
+cat("\n========== CORRELATION ANALYSIS ==========\n")
+
+numeric_cols <- avocado %>%
+  select(
+    AveragePrice, Total.Volume, Total.Bags, Small.Bags, Large.Bags, XLarge.Bags,
+    X4046, X4225, X4770, Bags_Percentage, Small_Bags_Pct,
+    price_lag_1, price_lag_2, price_lag_3, price_lag_4,
+    rolling_mean_4, rolling_sd_4
+  ) %>%
+  na.omit()
+
+cor_matrix <- cor(numeric_cols, use = "complete.obs")
+
+corrplot(cor_matrix, 
+         method = "color", 
+         type = "upper",
+         tl.col = "black",
+         tl.srt = 45,
+         title = "Correlation Matrix of Avocado Features",
+         mar = c(0,0,2,0))
+
+highly_correlated <- which(abs(cor_matrix) > 0.8 & abs(cor_matrix) < 1, arr.ind = TRUE)
+cat("\nHighly correlated feature pairs (>0.8):\n")
+if (length(highly_correlated) > 0) {
+  for (i in 1:min(5, nrow(highly_correlated))) {
+    row <- highly_correlated[i, 1]
+    col <- highly_correlated[i, 2]
+    if (row < col) {
+      cat("  ", rownames(cor_matrix)[row], "&", colnames(cor_matrix)[col], 
+          ": ", round(cor_matrix[row, col], 3), "\n")
+    }
+  }
+}
+```
+
+```{r}
+cat("\n========== TIME SERIES STATIONARITY ==========\n")
+
+ca_ts <- avocado %>%
+  filter(region == "California") %>%
+  arrange(Date) %>%
+  pull(AveragePrice) %>%
+  ts(frequency = 52)
+
+adf_test <- adf.test(ca_ts, alternative = "stationary")
+cat("California prices - ADF Test p-value:", adf_test$p.value, "\n")
+cat("Stationary?", ifelse(adf_test$p.value < 0.05, "YES", "NO"), "\n")
+
+if (adf_test$p.value > 0.05) {
+  cat("Series is NOT stationary. Will use differencing in ARIMA.\n")
+}
+```
+
+```{r}
+cat("\n========== DATA SPLITTING ==========\n")
+
+model_data <- avocado %>%
+  select(
+    Date,
+    AveragePrice,
+    Total.Volume,
+    type,
+    region,
+    year,
+    month,
+    season,
+    day_of_week,
+    Bags_Percentage,
+    Small_Bags_Pct,
+    is_holiday_season,
+    is_summer,
+    price_lag_1,
+    price_lag_2,
+    price_lag_3,
+    price_lag_4,
+    rolling_mean_4,
+    rolling_sd_4,
+    price_change_1,
+    price_yoy,
+    is_outlier
+  ) %>%
+  na.omit()
+
+cat("Model data dimensions:", dim(model_data), "\n")
+
+# Chronological split
+set.seed(123)
+n <- nrow(model_data)
+train_end <- floor(n * 0.7)
+valid_end <- floor(n * 0.85)
+
+train_data <- model_data[1:train_end, ]
+valid_data <- model_data[(train_end + 1):valid_end, ]
+test_data <- model_data[(valid_end + 1):n, ]
+
+cat("Training set:", nrow(train_data), "rows (", round(nrow(train_data)/n*100, 1), "%)\n")
+cat("Validation set:", nrow(valid_data), "rows (", round(nrow(valid_data)/n*100, 1), "%)\n")
+cat("Test set:", nrow(test_data), "rows (", round(nrow(test_data)/n*100, 1), "%)\n")
+
+cat("Date ranges:\n")
+cat("  Train:", format(min(train_data$Date), "%Y-%m-%d"), "to", 
+    format(max(train_data$Date), "%Y-%m-%d"), "\n")
+cat("  Valid:", format(min(valid_data$Date), "%Y-%m-%d"), "to", 
+    format(max(valid_data$Date), "%Y-%m-%d"), "\n")
+cat("  Test:", format(min(test_data$Date), "%Y-%m-%d"), "to", 
+    format(max(test_data$Date), "%Y-%m-%d"), "\n")
+```
+```{r}
+cat("\n========== DATA PREPROCESSING ==========\n")
+
+preprocess_steps <- preProcess(
+  train_data %>% select(where(is.numeric)),
+  method = c("center", "scale")
+)
+
+train_scaled <- predict(preprocess_steps, train_data)
+valid_scaled <- predict(preprocess_steps, valid_data)
+test_scaled <- predict(preprocess_steps, test_data)
+
+cat("Data preprocessing complete. Features scaled and centered.\n")
+```
+```{r}
+# Save prepared data
+saveRDS(list(
+  train = train_data,
+  valid = valid_data,
+  test = test_data,
+  train_scaled = train_scaled,
+  valid_scaled = valid_scaled,
+  test_scaled = test_scaled,
+  scaler = preprocess_steps
+), "avocado_prepared.rds")
+
+cat("Prepared data saved to 'avocado_prepared.rds'\n")
+cat("📁 Location:", getwd(), "/avocado_prepared.rds\n")
+```
+ARIMA TIME SERIES MODELING
+```{r}
+# Fix avocado dates if needed
+if(!inherits(avocado$Date, "Date") || min(avocado$Date, na.rm = TRUE) < 0) {
+  avocado <- avocado %>%
+    mutate(
+      Date = as.Date(Date, origin = "1899-12-30")
+    )
+  cat("Fixed avocado dates\n")
+}
+
+region_name <- "California"
+region_data <- avocado %>%
+  filter(region == region_name) %>%
+  arrange(Date) %>%
+  mutate(month_name = month(Date, label = TRUE))
+
+cat("Date range:", min(region_data$Date), "to", max(region_data$Date), "\n")
+cat("Rows:", nrow(region_data), "\n")
+```
+
+```{r}
+# PHASE 3: ARIMA TIME SERIES MODELING
+cat("\n========================================\n")
+cat("PHASE 3: ARIMA TIME SERIES MODELING\n")
+cat("========================================\n\n")
+
+# Prepare data
+region_name <- "California"
+
+region_data <- avocado %>%
+  filter(region == region_name) %>%
+  arrange(Date) %>%
+  mutate(
+    Date = as.Date(Date),
+    month_name = month(Date, label = TRUE)
+  )
+
+cat("Data period:", min(region_data$Date), "to", max(region_data$Date), "\n")
+cat("Number of weeks:", nrow(region_data), "\n")
+cat("Average price:", round(mean(region_data$AveragePrice), 3), "\n")
+
+# Create time series
+ts_data <- ts(
+  region_data$AveragePrice,
+  start = c(2015, 1),
+  frequency = 52
+)
+
+cat("\nTime Series Object:\n")
+cat("  Start:", start(ts_data), "\n")
+cat("  End:", end(ts_data), "\n")
+cat("  Frequency:", frequency(ts_data), "weeks/year\n")
+cat("  Observations:", length(ts_data), "\n")
+
+# Stationarity test
+cat("\n========== STATIONARITY TEST ==========\n")
+adf_result <- adf.test(ts_data, alternative = "stationary")
+cat("ADF Test p-value:", adf_result$p.value, "\n")
+cat("Is series stationary?", ifelse(adf_result$p.value < 0.05, "YES ✓", "NO ✗"), "\n")
+
+# Train ARIMA (FAST VERSION)
+cat("\n========== TRAINING ARIMA MODEL ==========\n")
+
+n <- length(ts_data)
+train_size <- floor(n * 0.8)
+test_size <- n - train_size
+
+train_ts <- ts_data[1:train_size]
+test_ts <- ts_data[(train_size + 1):n]
+
+cat("Training set:", train_size, "weeks\n")
+cat("Test set:", test_size, "weeks\n")
+
+set.seed(123)
+cat("\nFinding best ARIMA parameters (FAST)...\n")
+
+arima_model <- auto.arima(
+  train_ts,
+  seasonal = TRUE,
+  stepwise = TRUE,
+  approximation = TRUE,
+  max.p = 3,
+  max.q = 3,
+  max.P = 1,
+  max.Q = 1,
+  trace = TRUE
+)
+
+cat("\n✅ Best ARIMA Model:\n")
+print(arima_model)
+
+# Model diagnostics
+residuals <- residuals(arima_model)
+lb_test <- Box.test(residuals, lag = 10, type = "Ljung-Box")
+cat("\nLjung-Box Test p-value:", lb_test$p.value, "\n")
+cat("Residuals are", ifelse(lb_test$p.value > 0.05, "WHITE NOISE ✓", "CORRELATED ✗"), "\n")
+
+# Forecast on test set
+forecast_result <- forecast(arima_model, h = test_size)
+forecast_mean <- as.numeric(forecast_result$mean)
+actual_test <- as.numeric(test_ts)
+
+rmse <- sqrt(mean((forecast_mean - actual_test)^2))
+mae <- mean(abs(forecast_mean - actual_test))
+mape <- mean(abs((forecast_mean - actual_test) / actual_test)) * 100
+
+cat("\nTest Set Performance:\n")
+cat("  RMSE:", round(rmse, 4), "\n")
+cat("  MAE: ", round(mae, 4), "\n")
+cat("  MAPE:", round(mape, 2), "%\n")
+
+# 12-week forward forecast
+cat("\n========== 12-WEEK FORWARD FORECAST ==========\n")
+
+final_model <- auto.arima(
+  ts_data,
+  seasonal = TRUE,
+  stepwise = TRUE,
+  approximation = TRUE,
+  max.p = 3,
+  max.q = 3,
+  max.P = 1,
+  max.Q = 1
+)
+
+forward_forecast <- forecast(final_model, h = 12)
+
+last_date <- region_data$Date[nrow(region_data)]
+if(!inherits(last_date, "Date")) {
+  last_date <- as.Date(last_date)
+}
+if(is.null(last_date) || is.na(last_date)) {
+  last_date <- max(region_data$Date, na.rm = TRUE)
+}
+
+forecast_dates <- seq.Date(
+  from = as.Date(last_date) + 7,
+  by = "week",
+  length.out = 12
+)
+
+forecast_table <- data.frame(
+  Date = forecast_dates,
+  Forecast = round(as.numeric(forward_forecast$mean), 3),
+  Lower_80 = round(as.numeric(forward_forecast$lower[, 1]), 3),
+  Upper_80 = round(as.numeric(forward_forecast$upper[, 1]), 3),
+  Lower_95 = round(as.numeric(forward_forecast$lower[, 2]), 3),
+  Upper_95 = round(as.numeric(forward_forecast$upper[, 2]), 3)
+)
+
+cat("\n12-Week Price Forecast for", region_name, ":\n")
+print(forecast_table)
+```
+```{r}
+# ============================================================
+# PHASE 3B: MACHINE LEARNING MODELS (RANDOM FOREST)
+# ============================================================
+
+cat("\n========================================\n")
+cat("PHASE 3B: MACHINE LEARNING MODELS\n")
+cat("========================================\n\n")
+
+# Prepare data for ML
+ml_data <- model_data %>%
+  select(-Date) %>%
+  na.omit()
+
+cat("ML Data dimensions:", dim(ml_data), "\n")
+cat("Target variable: AveragePrice\n")
+cat("Features:", ncol(ml_data) - 1, "\n")
+
+# Prepare ML datasets
+train_ml <- train_data %>% select(-Date) %>% na.omit()
+valid_ml <- valid_data %>% select(-Date) %>% na.omit()
+test_ml <- test_data %>% select(-Date) %>% na.omit()
+
+cat("\nTraining set:", nrow(train_ml), "rows\n")
+cat("Validation set:", nrow(valid_ml), "rows\n")
+cat("Test set:", nrow(test_ml), "rows\n")
+
+# Train Random Forest
+cat("\n========== TRAINING RANDOM FOREST ==========\n")
+
+set.seed(123)
+rf_model <- randomForest(
+  AveragePrice ~ .,
+  data = train_ml,
+  ntree = 100,
+  importance = TRUE,
+  mtry = floor(sqrt(ncol(train_ml) - 1)),
+  nodesize = 5
+)
+
+cat("✅ Random Forest trained!\n")
+print(rf_model)
+
+# Random Forest Evaluation
+cat("\n========== RANDOM FOREST EVALUATION ==========\n")
+
+rf_pred <- predict(rf_model, newdata = test_ml)
+
+rf_rmse <- sqrt(mean((rf_pred - test_ml$AveragePrice)^2))
+rf_mae <- mean(abs(rf_pred - test_ml$AveragePrice))
+rf_r2 <- cor(rf_pred, test_ml$AveragePrice)^2
+rf_mape <- mean(abs((rf_pred - test_ml$AveragePrice) / test_ml$AveragePrice)) * 100
+
+cat("Random Forest Performance:\n")
+cat("  RMSE:", round(rf_rmse, 4), "\n")
+cat("  MAE: ", round(rf_mae, 4), "\n")
+cat("  R²:  ", round(rf_r2, 4), "\n")
+cat("  MAPE:", round(rf_mape, 2), "%\n")
+
+# Feature Importance
+importance_df <- as.data.frame(importance(rf_model))
+importance_df$Feature <- rownames(importance_df)
+importance_df <- importance_df %>%
+  arrange(desc(`%IncMSE`))
+
+cat("\nTop 10 Important Features:\n")
+print(head(importance_df, 10))
+
+# Feature importance plot
+imp_plot <- ggplot(head(importance_df, 10), 
+                   aes(x = reorder(Feature, `%IncMSE`), y = `%IncMSE`)) +
+  geom_col(fill = "#2E8B57") +
+  coord_flip() +
+  labs(
+    title = "Random Forest Feature Importance",
+    x = "Feature",
+    y = "% Increase in MSE"
+  ) +
+  theme_minimal()
+print(imp_plot)
+
+# Actual vs Predicted plot
+rf_results <- data.frame(
+  Actual = test_ml$AveragePrice,
+  Predicted = rf_pred
+)
+
+rf_plot <- ggplot(rf_results, aes(x = Actual, y = Predicted)) +
+  geom_point(alpha = 0.4, color = "#2E8B57") +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  labs(
+    title = paste("Random Forest: Actual vs Predicted (R² =", round(rf_r2, 3), ")"),
+    x = "Actual Price (USD)",
+    y = "Predicted Price (USD)"
+  ) +
+  theme_minimal()
+print(rf_plot)
+
+# Model Comparison
+cat("\n========== MODEL COMPARISON ==========\n")
+
+comparison_df <- data.frame(
+  Model = c("ARIMA", "Random Forest"),
+  RMSE = c(round(rmse, 4), round(rf_rmse, 4)),
+  MAPE = c(round(mape, 2), round(rf_mape, 2)),
+  R2 = c(NA, round(rf_r2, 4))
+)
+
+cat("Model Comparison:\n")
+print(comparison_df)
+
+if (rf_rmse < rmse) {
+  cat("\n✅ Random Forest performs better (lower RMSE)\n")
+} else {
+  cat("\n✅ ARIMA performs better (lower RMSE)\n")
+}
+
+# Save ML model
+saveRDS(rf_model, "rf_model.rds")
+cat("\n💾 Random Forest model saved to: rf_model.rds\n")
+```
+
+```{r}
+cat("\n========================================\n")
+cat("PHASE 4: ARIMA EVALUATION\n")
+cat("========================================\n\n")
+
+cat("========== MODEL PERFORMANCE ==========\n")
+cat("Model:", as.character(arima_model), "\n")
+cat("Training data:", train_size, "weeks\n")
+cat("Test data:", test_size, "weeks\n")
+
+cat("\nAccuracy Metrics:\n")
+cat("  RMSE:", round(rmse, 4), "\n")
+cat("  MAE: ", round(mae, 4), "\n")
+cat("  MAPE:", round(mape, 2), "%\n")
+
+if (mape < 5) {
+  cat("  ✅ Excellent forecast accuracy (<5% error)\n")
+} else if (mape < 10) {
+  cat("  ✅ Good forecast accuracy (5-10% error)\n")
+} else if (mape < 15) {
+  cat("  ⚠️ Moderate forecast accuracy (10-15% error)\n")
+} else {
+  cat("  ⚠️ Poor forecast accuracy (>15% error)\n")
+}
+
+# Forecast plot
+plot(forward_forecast, 
+     main = paste("12-Week Forecast -", region_name),
+     xlab = "Time",
+     ylab = "Price (USD)",
+     col = "#2E8B57",
+     fcol = "blue",
+     flwd = 2)
+
+cat("\n========== 12-WEEK FORECAST ==========\n")
+print(forecast_table)
+
+# Seasonal Insights
+cat("\n========== SEASONAL INSIGHTS ==========\n")
+
+# Create seasonal summary
+seasonal_summary <- region_data %>%
+  group_by(month_name) %>%
+  summarise(
+    avg_price = mean(AveragePrice),
+    min_price = min(AveragePrice),
+    max_price = max(AveragePrice)
+  ) %>%
+  arrange(desc(avg_price))
+
+cat("\nAverage price by month:\n")
+print(seasonal_summary)
+
+best_month <- seasonal_summary$month_name[which.min(seasonal_summary$avg_price)]
+worst_month <- seasonal_summary$month_name[which.max(seasonal_summary$avg_price)]
+
+cat("\n📈 Seasonal Insights:\n")
+cat("  Best month to buy (lowest price):", best_month, "\n")
+cat("  Worst month to buy (highest price):", worst_month, "\n")
+cat("  Price difference: $", 
+    round(max(seasonal_summary$avg_price) - min(seasonal_summary$avg_price), 3), "\n")
+
+# Business Insights
+cat("\n========== BUSINESS INSIGHTS ==========\n")
+
+price_trend <- ifelse(
+  mean(tail(region_data$AveragePrice, 4)) > mean(head(region_data$AveragePrice, 4)),
+  "UPWARD", "DOWNWARD"
+)
+
+cat("📊 Market Trends:\n")
+cat("  Current price trend:", price_trend, "\n")
+cat("  Current average price: $", round(mean(tail(region_data$AveragePrice, 4)), 3), "\n")
+cat("  Predicted price in 4 weeks: $", forecast_table$Forecast[4], "\n")
+cat("  Predicted price in 12 weeks: $", forecast_table$Forecast[12], "\n")
+
+price_change_4w <- ((forecast_table$Forecast[4] - mean(tail(region_data$AveragePrice, 4))) / 
+                    mean(tail(region_data$AveragePrice, 4))) * 100
+
+if (price_change_4w < -5) {
+  cat("  💡 Recommendation: BUY NOW - prices expected to drop\n")
+} else if (price_change_4w > 5) {
+  cat("  💡 Recommendation: SELL NOW - prices expected to rise\n")
+} else {
+  cat("  💡 Recommendation: HOLD - prices stable\n")
+}
+
+cat("\n========================================\n")
+cat("✅ PHASE 4 COMPLETE!\n")
+cat("========================================\n")
+```
+
+```{r}
+
+# ============================================================
+# DEPLOYMENT - RUN FROM RMD
+# ============================================================
+
+# Save models
+saveRDS(final_model, "arima_model.rds")
+saveRDS(rf_model, "rf_model.rds")
+
+# Save results
+write.csv(forecast_table, "forecast_results.csv", row.names = FALSE)
+write.csv(comparison_df, "model_comparison.csv", row.names = FALSE)
+
+cat("✅ Deployment files created!\n")
+cat("📁 Files: arima_model.rds, rf_model.rds, forecast_results.csv\n")
+```
+
+
