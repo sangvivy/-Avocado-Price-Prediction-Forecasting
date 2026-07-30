@@ -537,6 +537,8 @@ cd avocado-price-forecast
 ## Step 2: Install Required Packages
 
 # Install all required packages
+
+```{r}
 packages <- c(
   "tidyverse",      # Data manipulation
   "lubridate",      # Date handling
@@ -559,88 +561,90 @@ packages <- c(
 
 install.packages(packages)
 
+```
 
 ## Step 3: Run the Analysis
 
-# Option 1: Run the R Markdown report
+### Option 1: Run the R Markdown report
 rmarkdown::render("rmd/avocado_analysis.Rmd")
 
-# Option 2: Run the deployment script
+### Option 2: Run the deployment script
 source("scripts/06_deployment.R")
 
-# Option 3: Launch the dashboard
+### Option 3: Launch the dashboard
 shiny::runApp("dashboard/app.R")
 
-#📊 How to Run
+## 📊 How to Run
 Option 1: Run Everything (Recommended)
-r
-# In RStudio
+
+### In RStudio
 source("scripts/06_deployment.R")
-Option 2: Run Individual Components
-r
-# 1. Load and clean data
-source("scripts/01_load_data.R")
 
-# 2. Exploratory analysis
-source("scripts/02_eda.R")
-
-# 3. Feature engineering
-source("scripts/03_feature_engineering.R")
-
-# 4. Train models
-source("scripts/04_modeling.R")
-
-# 5. Evaluate models
-source("scripts/05_evaluation.R")
-
-# 6. Launch dashboard
-source("scripts/06_deployment.R")
-Option 3: From Terminal
-bash
-# Run the entire project
+### Run the entire project
 Rscript -e "rmarkdown::render('rmd/avocado_analysis.Rmd')"
 
-# Launch the dashboard
+### Launch the dashboard
+```{r}
 Rscript -e "shiny::runApp('dashboard/app.R')"
-📈 Results
-12-Week Forecast
-Week	Date	Forecast	80% CI (Lower)	80% CI (Upper)
-1	2018-04-01	$1.06	$0.88	$1.24
-2	2018-04-08	$1.68	$1.50	$1.87
-3	2018-04-15	$1.04	$0.81	$1.27
-4	2018-04-22	$1.73	$1.49	$1.96
-5	2018-04-29	$1.17	$0.90	$1.43
-6	2018-05-06	$1.73	$1.46	$2.00
-7	2018-05-13	$1.10	$0.90	$1.35
-8	2018-05-20	$1.70	$1.45	$1.95
-9	2018-05-27	$1.10	$0.88	$1.38
-10	2018-06-03	$1.70	$1.40	$2.00
-11	2018-06-10	$1.10	$0.85	$1.40
-12	2018-06-17	$1.70	$1.35	$2.05
-Model Comparison
-Model	RMSE	MAPE	R²
-ARIMA	0.185	8.23%	N/A
-Random Forest	0.172	7.12%	0.824
-Business Insights
-Week Type	Price Range	Action
-Low Weeks (1,3,5,7,9,11)	$1.04 - $1.17	🟢 BUY
-High Weeks (2,4,6,8,10,12)	$1.68 - $1.73	🔴 SELL
-Profit Opportunity: Buy at $1.04, sell at $1.73 = 66% profit margin!
+```
 
-🛠️ Technologies Used
+### 📈 Results
+
+12-Week Forecast
+
+| Week | Date | Forecast | 80% CI (Lower) | 80% CI (Upper) |
+| --- | --- | --- | --- | --- |
+| **1** | 2018-04-01 | $1.06 | $0.88 | $1.24 |
+| **2** | 2018-04-08 | $1.68 | $1.50 | $1.87 |
+| **3** | 2018-04-15 | $1.04 | $0.81 | $1.27 |
+| **4** | 2018-04-22 | $1.73 | $1.49 | $1.96 |
+| **5** | 2018-04-29 | $1.17 | $0.90 | $1.43 |
+| **6** | 2018-05-06 | $1.73 | $1.46 | $2.00 |
+| **7** | 2018-05-13 | $1.10 | $0.90 | $1.35 |
+| **8** | 2018-05-20 | $1.70 | $1.45 | $1.95 |
+| **9** | 2018-05-27 | $1.10 | $0.88 | $1.38 |
+| **10** | 2018-06-03 | $1.70 | $1.40 | $2.00 |
+| **11** | 2018-06-10 | $1.10 | $0.85 | $1.40 |
+| **12** | 2018-06-17 | $1.70 | $1.35 | $2.05 |
+
+
+### Model Comparison
+
+| Model | RMSE | MAPE | R² |
+| --- | --- | --- | --- |
+| **ARIMA** | 0.185 | 8.23% | N/A |
+| **Random Forest** | **0.172** | **7.12%** | **0.824** |
+
+
+### Business Insights
+
+| Week Type | Price Range | Action |
+| --- | --- | --- |
+| **Low Weeks (1,3,5,7,9,11)** | $1.04 - $1.17 | 🟢 **BUY** |
+| **High Weeks (2,4,6,8,10,12)** | $1.68 - $1.73 | 🔴 **SELL** |
+
+> 💡 **Profit Opportunity:** Buy at $1.04, sell at $1.73 = **66% profit margin!**
+
+### 🛠️ Technologies Used
 Programming Language
 R (4.0+)
 
-Key Libraries
-Category	Libraries
-Data Manipulation	tidyverse, dplyr, tidyr
-Date Handling	lubridate
-Visualization	ggplot2, plotly, corrplot
-Time Series	forecast, tseries, zoo
-Machine Learning	caret, randomForest
-Reporting	knitr, rmarkdown, kableExtra
-Dashboard	shiny, shinythemes
-Tools
+### Key Libraries
+
+Here is your formatted Markdown table for the project libraries:
+
+| Category | Libraries |
+| --- | --- |
+| **Data Manipulation** | `tidyverse`, `dplyr`, `tidyr` |
+| **Date Handling** | `lubridate` |
+| **Visualization** | `ggplot2`, `plotly`, `corrplot` |
+| **Time Series** | `forecast`, `tseries`, `zoo` |
+| **Machine Learning** | `caret`, `randomForest` |
+| **Reporting** | `knitr`, `rmarkdown`, `kableExtra` |
+| **Dashboard** | `shiny`, `shinythemes` |
+
+
+### Tools
 RStudio - IDE for development
 
 Git - Version control
@@ -649,8 +653,10 @@ GitHub - Repository hosting
 
 ShinyApps.io - Dashboard deployment (optional)
 
-🔮 Future Work
-Short-term Improvements
+### 🔮 Future Work
+
+#### Short-term Improvements
+
 1. Incorporate External Data
 
 Weather data (temperature, rainfall)
@@ -681,7 +687,7 @@ Export functionality (PDF reports)
 
 Email alerts for price changes
 
-Long-term Goals
+#### Long-term Goals
 1. Production Deployment
 
 Deploy to ShinyApps.io
