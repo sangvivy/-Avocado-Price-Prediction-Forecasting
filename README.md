@@ -10,27 +10,6 @@
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
 ---
-
-## 📋 Table of Contents
-
-- [Project Overview](#project-overview)
-- [Business Problem](#business-problem)
-- [Dataset](#dataset)
-- [Methodology](#methodology)
-- [Key Findings](#key-findings)
-- [Interactive Dashboard](#interactive-dashboard)
-- [Project Structure](#project-structure)
-- [Installation & Setup](#installation--setup)
-- [How to Run](#how-to-run)
-- [Results](#results)
-- [Technologies Used](#technologies-used)
-- [Future Work](#future-work)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact](#contact)
-
----
-
 ## 🎯 Project Overview
 
 This project applies **Time Series Analysis** and **Machine Learning** to predict avocado prices across US regions. By analyzing historical price data from 2015-2018, I built forecasting models that help farmers, distributors, and retailers make data-driven decisions about buying and selling avocados.
