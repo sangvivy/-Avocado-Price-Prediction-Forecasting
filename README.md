@@ -142,6 +142,7 @@ Created 20+ new features:
 - price_yoy = AveragePrice - lag(AveragePrice, 52)
 - is_holiday_season (November-December + early January)
 - season (Winter, Spring, Summer, Fall)
+```
 
 ## 3. Time Series Analysis
 
